@@ -875,7 +875,7 @@ dev.off()
 # Models are p1d_ei, p1e_ei, p2_ei, p3d_ei, p3e_ei
 
 est_p1d <- data.frame(fixef(p1d_ei, probs = c(0.05, 0.95))) # This pulls the parameter estimates for the fixed effects out of the model fit, including 90% credible intervals.
-setDT(est_p1d, keep.rownames = TRUE)[] # Convert row names into a column for use with the flextable package.
+setDT(est_p1d, keep.rownames = TRUE)[] # Convert row names into a column for use with the data.table package.
 
 est_p1e <- data.frame(fixef(p1e_ei, probs = c(0.05, 0.95)))
 setDT(est_p1e, keep.rownames = TRUE)[]
