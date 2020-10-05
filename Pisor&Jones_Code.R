@@ -28,6 +28,11 @@ dat$E_Freq_Ctr <- dat$E_Freq - min(dat$E_Freq)
 
 ### Round participants who named three or more long-distance connections (n=27) down to 3 for comparable size across levels of LDRs named. Same for reciprocity-based long-distance relationships: n=21 named two or more, so bin for comparability.
 
+## Keep a set without rounding for a model check: Poisson model specification with no binning (see heading EXPLORATORY: POISSON MODEL FORMULATION below).
+
+dat$LDR_n <- dat$LDR
+dat$RLDR_n  <- dat$RLDR
+
 dat$LDR <- ifelse (dat$LDR > 3, 3, dat$LDR)
 dat$RLDR <- ifelse (dat$RLDR > 2, 2, dat$RLDR)
 
@@ -60,7 +65,7 @@ dat1$Extra <- dat1$Ex_Convo + dat1$Ex_Stranger - min (dat1$Ex_Convo + dat1$Ex_St
 
 dat2 <- dat1 [ , ! (colnames(dat1) %in% c("YrBorn", "D_Mean", "E_Mean", "Inter_Mean", "Ex_Stranger", "Ex_Convo"))]
 
-### Give LDR and RLDR appropriate class (integer) for running cratio models (which expect the outcome to be an integer, not numeric)
+### Give LDR and RLDR appropriate class (integer) for running cratio models (which expect the outcome to be an integer, not numeric).
 dat2$LDR <- ordered(dat2$LDR); dat2$RLDR <- ordered(dat2$RLDR)
 
 ### Set weakly informative priors for all models
@@ -685,6 +690,98 @@ p3ane_ei <- brm(formula = bf(KSCR ~ E_Freq_Ctr +
                prior = priors, control = list(adapt_delta = 0.999),
                data = dat2, chains = 4, seed = semilla)
 
+################## EXPLORATORY: POISSON MODEL FORMULATION ###################
+
+# At the suggestion of a reviewer, we added a robustness check to assess whether Poisson models provide the same results as sequential models, although a Poisson process did not generate the data, so we prefer sequential models (see Section 2.4.1).
+
+### Main model 1
+p1d_eip <- brm(formula = bf(LDR_n ~ D_Mean_Ctr + 
+                             Sex + Age + Smartphone + Vehicle + Extra + Mo_Travel +
+                             (1|Community)),
+              family = poisson,
+              prior = priors, control = list(adapt_delta = 0.9999),
+              data = dat2[!(dat2$RID %in% c(67,75)),], chains = 4, seed = semilla)
+
+
+### Main model 2
+p1e_eip <- brm(formula = bf(LDR_n ~ E_Mean_Ctr + 
+                             Sex + Age + Smartphone + Vehicle + Extra + Mo_Travel +
+                             (1|Community)),
+              family = poisson,
+              prior = priors, control = list(adapt_delta = 0.9999, max_treedepth = 12),
+              data = dat2, chains = 4, seed = semilla)
+
+### Main model 3
+p2_eip <- brm(formula = bf(LDR_n ~ Inter_Mean_Ctr + 
+                            Sex + Age + Smartphone + Vehicle + Extra + Mo_Travel +
+                            (1|Community)), 
+             family = poisson,
+             prior = priors, control = list(adapt_delta = 0.99999, max_treedepth = 12),
+             data = dat2, chains = 4, seed = semilla)
+
+### Main model 4
+## Run with exp(1) as random effect prior to keep MCMC algorithm from wandering (and having a hard time finding a stable fit)
+priors <- c(set_prior("normal(0,10)", class = "b"),
+            set_prior("exponential(1)", class = "sd"))
+
+p3d_eip <- brm(formula = bf(LDR_n ~ D_Freq_Ctr + 
+                             Sex + Age + Smartphone + Vehicle + Extra + Mo_Travel +
+                             (1|Community)),
+              family = poisson,
+              prior = priors, control = list(adapt_delta = 0.9999, max_treedepth = 12),
+              data = dat2, chains = 4, seed = semilla)
+
+### Main model 5
+priors <- c(set_prior("normal(0,10)", class = "b"),
+            set_prior("cauchy(0,2)", class = "sd")) # Same prior as for all other models
+
+p3e_eip <- brm(formula = bf(LDR_n ~ E_Freq_Ctr + 
+                             Sex + Age + Smartphone + Vehicle + Extra + Mo_Travel +
+                             (1|Community)),
+              family = poisson,
+              prior = priors, control = list(adapt_delta = 0.9999),
+              data = dat2, chains = 4, seed = semilla)
+
+
+################## EXPLORATORY: DIVERSIFIED INCOME SOURCES ###################
+
+# Two reviewers wondered about the effects of other options on preferences for long-distance relationships. For example, one pointed out that precipitation variability may have a greater impact on those more reliant on horticulture, given the direct link between precipitation and crop productivity. Accordingly, we added data counting the number of income sources for each family -- though, importantly, most of those income sources dry up in the absence of precipitation or the abundance of it anyway (e.g., people have no cash to pay for taxis or groceries). Note that diversification is one of a number of potential adaptations people can use to manage climate variability, as discussed in Section 1.2.
+
+p1d_eid <- brm(formula = bf(LDR ~ D_Mean_Ctr + 
+                             Sex + Age + Smartphone + Vehicle + Extra + Mo_Travel + Diversified +
+                             (1|Community)), 
+              family = cratio (link = "logit", threshold = "equidistant"),
+              prior = priors, control = list(adapt_delta = 0.999, max_treedepth = 15),
+              data = dat2[!(dat2$RID %in% c(67,75)),], chains = 4, seed = semilla)
+
+p1e_eid <- brm(formula = bf(LDR ~ E_Mean_Ctr + 
+                             Sex + Age + Smartphone + Vehicle + Extra + Mo_Travel + Diversified +
+                             (1|Community)), 
+              family = cratio (link = "logit", threshold = "equidistant"),
+              prior = priors, control = list(adapt_delta = 0.999, max_treedepth = 12),
+              data = dat2, chains = 4, seed = semilla)
+
+p2_eid <- brm(formula = bf(LDR ~ Inter_Mean_Ctr + 
+                            Sex + Age + Smartphone + Vehicle + Extra + Mo_Travel + Diversified +
+                            (1|Community)), 
+             family = cratio (link = "logit", threshold = "equidistant"),
+             prior = priors, control = list(adapt_delta = 0.9999, max_treedepth = 12),
+             data = dat2, chains = 4, seed = semilla)
+
+p3d_eid <- brm(formula = bf(LDR ~ D_Freq_Ctr + 
+                             Sex + Age + Smartphone + Vehicle + Extra + Mo_Travel + Diversified +
+                             (1|Community)),
+              family = cratio (link = "logit", threshold = "equidistant"),
+              prior = priors, control = list(adapt_delta = 0.9999),
+              data = dat2, chains = 4, seed = semilla)
+
+p3e_eid <- brm(formula = bf(LDR ~ E_Freq_Ctr + 
+                             Sex + Age + Smartphone + Vehicle + Extra + Mo_Travel + Diversified +
+                             (1|Community)),
+              family = cratio (link = "logit", threshold = "equidistant"),
+              prior = priors, control = list(adapt_delta = 0.999),
+              data = dat2, chains = 4, seed = semilla)
+
 
 ################## SUMMARY STATISTICS (TABLE S1) ###################
 
@@ -875,7 +972,7 @@ dev.off()
 # Models are p1d_ei, p1e_ei, p2_ei, p3d_ei, p3e_ei
 
 est_p1d <- data.frame(fixef(p1d_ei, probs = c(0.05, 0.95))) # This pulls the parameter estimates for the fixed effects out of the model fit, including 90% credible intervals.
-setDT(est_p1d, keep.rownames = TRUE)[] # Convert row names into a column for use with the data.table package.
+setDT(est_p1d, keep.rownames = TRUE)[] # Convert row names into a column for use with the flextable package.
 
 est_p1e <- data.frame(fixef(p1e_ei, probs = c(0.05, 0.95)))
 setDT(est_p1e, keep.rownames = TRUE)[]
@@ -900,7 +997,7 @@ df_p3e <- data.frame(Variable = est_p3e$rn, Group = "P3 Excess", LI =  exp(est_p
 
 df <- rbind(df_p1d, df_p1e, df_p2, df_p3d, df_p3e)
 df1 <- df[!(df$Variable %in% grep("Intercept", df$Variable, value = T)), ] # Intercepts are not plotted, particularly because these are the parameter estimates for the thresholds between each level in cratio models -- and these are notoriously difficult to interpret (see https://journals.sagepub.com/doi/10.1177/2515245918823199).
-df1$Type <- ifelse(df1$Variable %in% c("D_Mean_Ctr", "E_Mean_Ctr", "Inter_Mean_Ctr", "D_Freq_Ctr", "E_Freq_Ctr"), "Predictor", "Third Variable")
+df1$Type <- ifelse(df1$Variable %in% c("D_Mean_Ctr", "E_Mean_Ctr", "Inter_Mean_Ctr", "D_Freq_Ctr", "E_Freq_Ctr"), "Predictor", "Control Variable")
 
 df1$Variable[df1$Variable %in% "D_Freq_Ctr"] <- "Percent Dry Months"
 df1$Variable[df1$Variable %in% "E_Freq_Ctr"] <- "Percent Wet Months"
@@ -958,7 +1055,7 @@ df_p3e <- data.frame(Variable = est_p3e$rn, Group = "P3 Excess", LI =  exp(est_p
 
 df <- rbind(df_p1d, df_p1e, df_p2, df_p3d, df_p3e)
 df1 <- df[!(df$Variable %in% grep("Intercept", df$Variable, value = T)), ]
-df1$Type <- ifelse(df1$Variable %in% c("D_Mean_Ctr", "E_Mean_Ctr", "Inter_Mean_Ctr", "D_Freq_Ctr", "E_Freq_Ctr"), "Predictor", "Third Variable")
+df1$Type <- ifelse(df1$Variable %in% c("D_Mean_Ctr", "E_Mean_Ctr", "Inter_Mean_Ctr", "D_Freq_Ctr", "E_Freq_Ctr"), "Predictor", "Control Variable")
 
 df1$Variable[df1$Variable %in% "D_Freq_Ctr"] <- "Percent Dry Months"
 df1$Variable[df1$Variable %in% "E_Freq_Ctr"] <- "Percent Wet Months"
@@ -1013,7 +1110,7 @@ df_p3e <- data.frame(Variable = est_p3e$rn, Group = "P3 Excess", LI =  exp(est_p
 
 df <- rbind(df_p1d, df_p1e, df_p2, df_p3d, df_p3e)
 df1 <- df[!(df$Variable %in% grep("Intercept", df$Variable, value = T)), ]
-df1$Type <- ifelse(df1$Variable %in% c("D_Mean_Ctr", "E_Mean_Ctr", "Inter_Mean_Ctr", "D_Freq_Ctr", "E_Freq_Ctr"), "Predictor", "Third Variable")
+df1$Type <- ifelse(df1$Variable %in% c("D_Mean_Ctr", "E_Mean_Ctr", "Inter_Mean_Ctr", "D_Freq_Ctr", "E_Freq_Ctr"), "Predictor", "Control Variable")
 
 df1$Variable[df1$Variable %in% "D_Freq_Ctr"] <- "Percent Dry Months"
 df1$Variable[df1$Variable %in% "E_Freq_Ctr"] <- "Percent Wet Months"
@@ -1068,7 +1165,7 @@ df_p3e <- data.frame(Variable = est_p3e$rn, Group = "P3 Excess", LI =  exp(est_p
 
 df <- rbind(df_p1d, df_p1e, df_p2, df_p3d, df_p3e)
 df1 <- df[!(df$Variable %in% grep("Intercept", df$Variable, value = T)), ]
-df1$Type <- ifelse(df1$Variable %in% c("D_Mean_Ctr", "E_Mean_Ctr", "Inter_Mean_Ctr", "D_Freq_Ctr", "E_Freq_Ctr"), "Predictor", "Third Variable")
+df1$Type <- ifelse(df1$Variable %in% c("D_Mean_Ctr", "E_Mean_Ctr", "Inter_Mean_Ctr", "D_Freq_Ctr", "E_Freq_Ctr"), "Predictor", "Control Variable")
 
 df1$Variable[df1$Variable %in% "D_Freq_Ctr"] <- "Percent Dry Months"
 df1$Variable[df1$Variable %in% "E_Freq_Ctr"] <- "Percent Wet Months"
